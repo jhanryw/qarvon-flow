@@ -14,16 +14,387 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      inbox_conversations: {
+        Row: {
+          assigned_to: string | null
+          channel_type: Database["public"]["Enums"]["channel_type"]
+          contact_avatar: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          external_contact_id: string
+          id: string
+          last_message: string | null
+          last_message_at: string | null
+          lead_id: string | null
+          origem: Database["public"]["Enums"]["lead_source"] | null
+          status: Database["public"]["Enums"]["conversation_status"]
+          unread_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          channel_type: Database["public"]["Enums"]["channel_type"]
+          contact_avatar?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          external_contact_id: string
+          id?: string
+          last_message?: string | null
+          last_message_at?: string | null
+          lead_id?: string | null
+          origem?: Database["public"]["Enums"]["lead_source"] | null
+          status?: Database["public"]["Enums"]["conversation_status"]
+          unread_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          channel_type?: Database["public"]["Enums"]["channel_type"]
+          contact_avatar?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          external_contact_id?: string
+          id?: string
+          last_message?: string | null
+          last_message_at?: string | null
+          lead_id?: string | null
+          origem?: Database["public"]["Enums"]["lead_source"] | null
+          status?: Database["public"]["Enums"]["conversation_status"]
+          unread_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbox_conversations_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inbox_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          is_read: boolean | null
+          media_type: string | null
+          media_url: string | null
+          sender_id: string | null
+          sender_type: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          media_type?: string | null
+          media_url?: string | null
+          sender_id?: string | null
+          sender_type: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          media_type?: string | null
+          media_url?: string | null
+          sender_id?: string | null
+          sender_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbox_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "inbox_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_history: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          mensagem: string
+          resposta: string | null
+          tipo: Database["public"]["Enums"]["channel_type"]
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          mensagem: string
+          resposta?: string | null
+          tipo: Database["public"]["Enums"]["channel_type"]
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          mensagem?: string
+          resposta?: string | null
+          tipo?: Database["public"]["Enums"]["channel_type"]
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_history_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          cargo: string | null
+          created_at: string
+          data_abertura: string | null
+          email: string | null
+          empresa: string | null
+          id: string
+          localizacao: string | null
+          ltv: number | null
+          mensagem_enviada: boolean | null
+          nome: string
+          observacoes: string | null
+          origem: Database["public"]["Enums"]["lead_source"]
+          proximo_contato: string | null
+          responsavel_id: string | null
+          reuniao_notas: string | null
+          segmento: string | null
+          status: Database["public"]["Enums"]["lead_status"]
+          telefone: string | null
+          ultimo_contato: string | null
+          updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          cargo?: string | null
+          created_at?: string
+          data_abertura?: string | null
+          email?: string | null
+          empresa?: string | null
+          id?: string
+          localizacao?: string | null
+          ltv?: number | null
+          mensagem_enviada?: boolean | null
+          nome: string
+          observacoes?: string | null
+          origem?: Database["public"]["Enums"]["lead_source"]
+          proximo_contato?: string | null
+          responsavel_id?: string | null
+          reuniao_notas?: string | null
+          segmento?: string | null
+          status?: Database["public"]["Enums"]["lead_status"]
+          telefone?: string | null
+          ultimo_contato?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          cargo?: string | null
+          created_at?: string
+          data_abertura?: string | null
+          email?: string | null
+          empresa?: string | null
+          id?: string
+          localizacao?: string | null
+          ltv?: number | null
+          mensagem_enviada?: boolean | null
+          nome?: string
+          observacoes?: string | null
+          origem?: Database["public"]["Enums"]["lead_source"]
+          proximo_contato?: string | null
+          responsavel_id?: string | null
+          reuniao_notas?: string | null
+          segmento?: string | null
+          status?: Database["public"]["Enums"]["lead_status"]
+          telefone?: string | null
+          ultimo_contato?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          id: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      seller_channels: {
+        Row: {
+          channel_type: Database["public"]["Enums"]["channel_type"]
+          config: Json | null
+          created_at: string
+          id: string
+          instance_name: string
+          is_active: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_type: Database["public"]["Enums"]["channel_type"]
+          config?: Json | null
+          created_at?: string
+          id?: string
+          instance_name: string
+          is_active?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_type?: Database["public"]["Enums"]["channel_type"]
+          config?: Json | null
+          created_at?: string
+          id?: string
+          instance_name?: string
+          is_active?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          canal: Database["public"]["Enums"]["lead_source"] | null
+          categoria: string
+          cliente: string | null
+          created_at: string
+          data: string
+          id: string
+          observacoes: string | null
+          subcategoria: string | null
+          tipo: string
+          user_id: string | null
+          valor: number
+        }
+        Insert: {
+          canal?: Database["public"]["Enums"]["lead_source"] | null
+          categoria: string
+          cliente?: string | null
+          created_at?: string
+          data?: string
+          id?: string
+          observacoes?: string | null
+          subcategoria?: string | null
+          tipo: string
+          user_id?: string | null
+          valor: number
+        }
+        Update: {
+          canal?: Database["public"]["Enums"]["lead_source"] | null
+          categoria?: string
+          cliente?: string | null
+          created_at?: string
+          data?: string
+          id?: string
+          observacoes?: string | null
+          subcategoria?: string | null
+          tipo?: string
+          user_id?: string | null
+          valor?: number
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role:
+        | "admin"
+        | "financeiro"
+        | "rh"
+        | "social_media"
+        | "gestor_trafego"
+        | "vendedor"
+        | "sdr_outbound"
+      channel_type: "whatsapp" | "instagram" | "email" | "ligacao"
+      conversation_status: "pendente" | "ativo" | "arquivado"
+      lead_source: "inbound" | "outbound" | "indicacao" | "pap" | "trafego_pago"
+      lead_status:
+        | "novo"
+        | "contatado"
+        | "respondeu"
+        | "reuniao_marcada"
+        | "proposta_enviada"
+        | "negociacao"
+        | "fechado"
+        | "perdido"
+        | "nutricao"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +521,30 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: [
+        "admin",
+        "financeiro",
+        "rh",
+        "social_media",
+        "gestor_trafego",
+        "vendedor",
+        "sdr_outbound",
+      ],
+      channel_type: ["whatsapp", "instagram", "email", "ligacao"],
+      conversation_status: ["pendente", "ativo", "arquivado"],
+      lead_source: ["inbound", "outbound", "indicacao", "pap", "trafego_pago"],
+      lead_status: [
+        "novo",
+        "contatado",
+        "respondeu",
+        "reuniao_marcada",
+        "proposta_enviada",
+        "negociacao",
+        "fechado",
+        "perdido",
+        "nutricao",
+      ],
+    },
   },
 } as const
