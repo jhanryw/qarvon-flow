@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Lead, LeadStatus } from '@/types';
-import { mockLeads, pipelineStages } from '@/data/mockData';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Tables } from '@/integrations/supabase/types';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { 
   Phone, 
@@ -13,9 +14,10 @@ import {
   MoreHorizontal,
   Plus,
   Filter,
-  Search
+  Search,
+  Loader2
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -25,17 +27,63 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { AddLeadDialog } from './AddLeadDialog';
+
+type Lead = Tables<'leads'>;
+type LeadStatus = Lead['status'];
+
+const pipelineStages = [
+  { id: 'novo', label: 'Novo', color: 'bg-slate-500' },
+  { id: 'contatado', label: 'Contatado', color: 'bg-blue-500' },
+  { id: 'respondeu', label: 'Respondeu', color: 'bg-cyan-500' },
+  { id: 'reuniao_marcada', label: 'Reunião Marcada', color: 'bg-emerald-500' },
+  { id: 'proposta_enviada', label: 'Proposta Enviada', color: 'bg-amber-500' },
+  { id: 'negociacao', label: 'Negociação', color: 'bg-orange-500' },
+  { id: 'fechado', label: 'Fechado', color: 'bg-green-600' },
+  { id: 'perdido', label: 'Perdido', color: 'bg-red-500' },
+  { id: 'nutricao', label: 'Nutrição', color: 'bg-purple-500' },
+];
+
+const origemLabels: Record<string, string> = {
+  inbound: 'Inbound',
+  outbound: 'Outbound',
+  indicacao: 'Indicação',
+  pap: 'PAP',
+  trafego_pago: 'Tráfego Pago'
+};
 
 export function CRMPipeline() {
-  const [leads, setLeads] = useState<Lead[]>(mockLeads);
+  const { user } = useAuth();
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+
+  useEffect(() => {
+    fetchLeads();
+  }, []);
+
+  const fetchLeads = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('leads')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching leads:', error);
+    } else {
+      setLeads(data || []);
+    }
+    setLoading(false);
+  };
 
   const filteredLeads = leads.filter(lead => 
     lead.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.segmento.toLowerCase().includes(searchTerm.toLowerCase())
+    (lead.empresa?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (lead.segmento?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const getLeadsByStatus = (status: LeadStatus) => 
@@ -49,15 +97,23 @@ export function CRMPipeline() {
     e.preventDefault();
   };
 
-  const handleDrop = (status: LeadStatus) => {
+  const handleDrop = async (status: LeadStatus) => {
     if (draggedLead) {
+      // Optimistic update
       setLeads(prev => 
         prev.map(lead => 
           lead.id === draggedLead.id 
-            ? { ...lead, status, ultimoContato: new Date() } 
+            ? { ...lead, status, ultimo_contato: new Date().toISOString() } 
             : lead
         )
       );
+
+      // Update in database
+      await supabase
+        .from('leads')
+        .update({ status, ultimo_contato: new Date().toISOString() })
+        .eq('id', draggedLead.id);
+
       setDraggedLead(null);
     }
   };
@@ -72,6 +128,14 @@ export function CRMPipeline() {
     };
     return colors[origem] || 'bg-muted';
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
@@ -92,7 +156,7 @@ export function CRMPipeline() {
             Filtros
           </Button>
         </div>
-        <Button className="gradient-primary text-white">
+        <Button className="gradient-primary text-white" onClick={() => setAddDialogOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Novo Lead
         </Button>
@@ -151,31 +215,35 @@ export function CRMPipeline() {
                           variant="outline" 
                           className={cn("text-[10px] px-1.5", getOrigemBadge(lead.origem))}
                         >
-                          {lead.origem}
+                          {origemLabels[lead.origem] || lead.origem}
                         </Badge>
-                        <Badge variant="outline" className="text-[10px] px-1.5">
-                          {lead.tipoContato === 'decisor' ? '👔 Decisor' : '🏪 Loja'}
-                        </Badge>
+                        {lead.cargo && (
+                          <Badge variant="outline" className="text-[10px] px-1.5">
+                            {lead.cargo}
+                          </Badge>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <MapPin className="w-3 h-3" />
-                        <span className="truncate">{lead.localizacao}</span>
-                      </div>
+                      {lead.localizacao && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <MapPin className="w-3 h-3" />
+                          <span className="truncate">{lead.localizacao}</span>
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">
-                          {lead.ultimoContato.toLocaleDateString('pt-BR')}
+                          {lead.ultimo_contato 
+                            ? new Date(lead.ultimo_contato).toLocaleDateString('pt-BR')
+                            : new Date(lead.created_at).toLocaleDateString('pt-BR')
+                          }
                         </span>
-                        <div className="w-6 h-6 rounded-full gradient-primary flex items-center justify-center text-white text-[10px] font-medium">
-                          {lead.responsavel.charAt(0)}
-                        </div>
                       </div>
 
                       {lead.ltv && (
                         <div className="pt-2 border-t border-border/50">
                           <p className="text-xs text-muted-foreground">
-                            LTV: <span className="text-primary font-semibold">R$ {lead.ltv.toLocaleString('pt-BR')}</span>
+                            LTV: <span className="text-primary font-semibold">R$ {Number(lead.ltv).toLocaleString('pt-BR')}</span>
                           </p>
                         </div>
                       )}
@@ -207,26 +275,36 @@ export function CRMPipeline() {
 
               <div className="grid grid-cols-2 gap-6 py-4">
                 <div className="space-y-4">
-                  <div className="flex items-center gap-3 text-sm">
-                    <User className="w-4 h-4 text-muted-foreground" />
-                    <span>{selectedLead.cargo}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Phone className="w-4 h-4 text-muted-foreground" />
-                    <span>{selectedLead.telefone}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Mail className="w-4 h-4 text-muted-foreground" />
-                    <span>{selectedLead.email}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Building className="w-4 h-4 text-muted-foreground" />
-                    <span>{selectedLead.segmento}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <MapPin className="w-4 h-4 text-muted-foreground" />
-                    <span>{selectedLead.localizacao}</span>
-                  </div>
+                  {selectedLead.cargo && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <User className="w-4 h-4 text-muted-foreground" />
+                      <span>{selectedLead.cargo}</span>
+                    </div>
+                  )}
+                  {selectedLead.telefone && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <Phone className="w-4 h-4 text-muted-foreground" />
+                      <span>{selectedLead.telefone}</span>
+                    </div>
+                  )}
+                  {selectedLead.email && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <Mail className="w-4 h-4 text-muted-foreground" />
+                      <span>{selectedLead.email}</span>
+                    </div>
+                  )}
+                  {selectedLead.segmento && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <Building className="w-4 h-4 text-muted-foreground" />
+                      <span>{selectedLead.segmento}</span>
+                    </div>
+                  )}
+                  {selectedLead.localizacao && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <MapPin className="w-4 h-4 text-muted-foreground" />
+                      <span>{selectedLead.localizacao}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">
@@ -242,18 +320,14 @@ export function CRMPipeline() {
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Origem</p>
                     <Badge variant="outline" className={getOrigemBadge(selectedLead.origem)}>
-                      {selectedLead.origem}
+                      {origemLabels[selectedLead.origem] || selectedLead.origem}
                     </Badge>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Responsável</p>
-                    <p className="font-medium">{selectedLead.responsavel}</p>
                   </div>
                   {selectedLead.ltv && (
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">LTV</p>
                       <p className="text-xl font-bold text-primary">
-                        R$ {selectedLead.ltv.toLocaleString('pt-BR')}
+                        R$ {Number(selectedLead.ltv).toLocaleString('pt-BR')}
                       </p>
                     </div>
                   )}
@@ -267,13 +341,13 @@ export function CRMPipeline() {
                 </div>
               )}
 
-              {selectedLead.reuniaoNotas && (
+              {selectedLead.reuniao_notas && (
                 <div className="border-t border-border pt-4">
                   <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
                     Notas da Reunião
                   </p>
-                  <p className="text-sm bg-muted/50 p-3 rounded-lg">{selectedLead.reuniaoNotas}</p>
+                  <p className="text-sm bg-muted/50 p-3 rounded-lg">{selectedLead.reuniao_notas}</p>
                 </div>
               )}
 
@@ -295,6 +369,12 @@ export function CRMPipeline() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AddLeadDialog 
+        open={addDialogOpen} 
+        onOpenChange={setAddDialogOpen} 
+        onLeadAdded={fetchLeads}
+      />
     </div>
   );
 }

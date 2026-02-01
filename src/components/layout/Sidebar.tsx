@@ -11,16 +11,25 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Zap
+  Zap,
+  Inbox,
+  Radio,
+  LogOut
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
   activeModule: string;
   onModuleChange: (module: string) => void;
+  userName?: string;
+  userEmail?: string;
+  onSignOut?: () => void;
 }
 
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'inbox', label: 'Inbox Unificado', icon: Inbox },
+  { id: 'canais', label: 'Configurar Canais', icon: Radio },
   { id: 'crm', label: 'CRM', icon: Users },
   { id: 'cadencias', label: 'Cadências', icon: MessageSquare },
   { id: 'objecoes', label: 'Matriz de Objeções', icon: Target },
@@ -30,7 +39,7 @@ const menuItems = [
   { id: 'configuracoes', label: 'Configurações', icon: Settings },
 ];
 
-export function Sidebar({ activeModule, onModuleChange }: SidebarProps) {
+export function Sidebar({ activeModule, onModuleChange, userName, userEmail, onSignOut }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -100,15 +109,26 @@ export function Sidebar({ activeModule, onModuleChange }: SidebarProps) {
           collapsed && "justify-center"
         )}>
           <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-white font-semibold text-sm">
-            Q
+            {userName?.charAt(0).toUpperCase() || 'Q'}
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">Admin</p>
-              <p className="text-xs text-muted-foreground truncate">admin@qarvon.com</p>
+              <p className="text-sm font-medium text-foreground truncate">{userName || 'Usuário'}</p>
+              <p className="text-xs text-muted-foreground truncate">{userEmail || ''}</p>
             </div>
           )}
         </div>
+        {!collapsed && onSignOut && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="w-full mt-3 text-muted-foreground hover:text-foreground"
+            onClick={onSignOut}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Sair
+          </Button>
+        )}
       </div>
     </aside>
   );
