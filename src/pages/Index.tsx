@@ -9,9 +9,14 @@ import { ScriptsView } from '@/components/scripts/ScriptsView';
 import { FinanceiroView } from '@/components/financeiro/FinanceiroView';
 import { AgendaView } from '@/components/agenda/AgendaView';
 import { ConfiguracoesView } from '@/components/configuracoes/ConfiguracoesView';
+import { UnifiedInbox } from '@/components/inbox/UnifiedInbox';
+import { ChannelSettings } from '@/components/inbox/ChannelSettings';
+import { useAuth } from '@/contexts/AuthContext';
 
 const moduleConfig: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard', subtitle: 'Visão geral da agência' },
+  inbox: { title: 'Inbox Unificado', subtitle: 'WhatsApp + Instagram' },
+  canais: { title: 'Configurar Canais', subtitle: 'WhatsApp e Instagram por vendedor' },
   crm: { title: 'CRM', subtitle: 'Gestão de leads e pipeline' },
   cadencias: { title: 'Cadências', subtitle: 'Fluxos de abordagem' },
   objecoes: { title: 'Matriz de Objeções', subtitle: 'Respostas para objeções' },
@@ -23,11 +28,16 @@ const moduleConfig: Record<string, { title: string; subtitle: string }> = {
 
 const Index = () => {
   const [activeModule, setActiveModule] = useState('dashboard');
+  const { profile, signOut } = useAuth();
 
   const renderModule = () => {
     switch (activeModule) {
       case 'dashboard':
         return <Dashboard />;
+      case 'inbox':
+        return <UnifiedInbox />;
+      case 'canais':
+        return <ChannelSettings />;
       case 'crm':
         return <CRMPipeline />;
       case 'cadencias':
@@ -51,7 +61,13 @@ const Index = () => {
 
   return (
     <div className="flex h-screen bg-background dark">
-      <Sidebar activeModule={activeModule} onModuleChange={setActiveModule} />
+      <Sidebar 
+        activeModule={activeModule} 
+        onModuleChange={setActiveModule}
+        userName={profile?.nome}
+        userEmail={profile?.email}
+        onSignOut={signOut}
+      />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header title={config.title} subtitle={config.subtitle} />
         <main className="flex-1 overflow-auto">
