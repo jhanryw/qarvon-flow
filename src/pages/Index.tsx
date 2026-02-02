@@ -11,6 +11,7 @@ import { AgendaView } from '@/components/agenda/AgendaView';
 import { ConfiguracoesView } from '@/components/configuracoes/ConfiguracoesView';
 import { UnifiedInbox } from '@/components/inbox/UnifiedInbox';
 import { ChannelSettings } from '@/components/inbox/ChannelSettings';
+import { UserManagement } from '@/components/configuracoes/UserManagement';
 import { useAuth } from '@/contexts/AuthContext';
 
 const moduleConfig: Record<string, { title: string; subtitle: string }> = {
@@ -24,11 +25,12 @@ const moduleConfig: Record<string, { title: string; subtitle: string }> = {
   financeiro: { title: 'Financeiro', subtitle: 'Fluxo de caixa' },
   agenda: { title: 'Agenda', subtitle: 'Compromissos e eventos' },
   configuracoes: { title: 'Configurações', subtitle: 'Preferências do sistema' },
+  usuarios: { title: 'Usuários', subtitle: 'Gerenciar equipe e permissões' },
 };
 
 const Index = () => {
   const [activeModule, setActiveModule] = useState('dashboard');
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isAdmin } = useAuth();
 
   const renderModule = () => {
     switch (activeModule) {
@@ -52,6 +54,8 @@ const Index = () => {
         return <AgendaView />;
       case 'configuracoes':
         return <ConfiguracoesView />;
+      case 'usuarios':
+        return <UserManagement />;
       default:
         return <Dashboard />;
     }
@@ -67,6 +71,7 @@ const Index = () => {
         userName={profile?.nome}
         userEmail={profile?.email}
         onSignOut={signOut}
+        isAdmin={isAdmin()}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header title={config.title} subtitle={config.subtitle} />

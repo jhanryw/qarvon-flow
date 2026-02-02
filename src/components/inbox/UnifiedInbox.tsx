@@ -199,7 +199,7 @@ export function UnifiedInbox() {
   const handlePromoteToLead = async (conversation: Conversation) => {
     if (!user) return;
 
-    // Create a new lead from the conversation
+    // Create a new lead from the conversation - marked as from channel
     const { data: lead, error: leadError } = await supabase
       .from('leads')
       .insert({
@@ -207,7 +207,8 @@ export function UnifiedInbox() {
         telefone: conversation.contact_phone,
         origem: conversation.origem || 'inbound',
         responsavel_id: user.id,
-        status: 'novo'
+        status: 'novo',
+        criado_via: conversation.channel_type // 'whatsapp' or 'instagram'
       })
       .select()
       .single();
