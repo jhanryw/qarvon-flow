@@ -83,7 +83,8 @@ export function AddLeadDialog({ open, onOpenChange, onLeadAdded }: AddLeadDialog
       origem: lead.origem,
       observacoes: lead.observacoes || null,
       responsavel_id: user?.id,
-      status: 'novo'
+      status: 'novo',
+      criado_via: 'manual'
     });
 
     if (error) {

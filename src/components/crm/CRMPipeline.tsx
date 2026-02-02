@@ -15,7 +15,8 @@ import {
   Plus,
   Filter,
   Search,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,9 +28,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { AddLeadDialog } from './AddLeadDialog';
+import { useToast } from '@/hooks/use-toast';
 
-type Lead = Tables<'leads'>;
+type Lead = Tables<'leads'> & { criado_via?: string };
 type LeadStatus = Lead['status'];
 
 const pipelineStages = [
@@ -53,13 +65,16 @@ const origemLabels: Record<string, string> = {
 };
 
 export function CRMPipeline() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const { toast } = useToast();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
 
   useEffect(() => {
     fetchLeads();
@@ -78,6 +93,30 @@ export function CRMPipeline() {
       setLeads(data || []);
     }
     setLoading(false);
+  };
+
+  const handleDeleteLead = async () => {
+    if (!leadToDelete) return;
+
+    const { error } = await supabase
+      .from('leads')
+      .delete()
+      .eq('id', leadToDelete.id);
+
+    if (error) {
+      toast({ title: 'Erro', description: 'Não foi possível excluir o lead', variant: 'destructive' });
+    } else {
+      toast({ title: 'Lead excluído' });
+      setSelectedLead(null);
+      fetchLeads();
+    }
+    setDeleteDialogOpen(false);
+    setLeadToDelete(null);
+  };
+
+  const canDeleteLead = (lead: Lead) => {
+    // Can only delete manually created leads
+    return (lead as any).criado_via === 'manual' && isAdmin();
   };
 
   const filteredLeads = leads.filter(lead => 
@@ -364,11 +403,41 @@ export function CRMPipeline() {
                   <Calendar className="w-4 h-4 mr-2" />
                   Agendar Reunião
                 </Button>
+                {canDeleteLead(selectedLead) && (
+                  <Button 
+                    variant="outline" 
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      setLeadToDelete(selectedLead);
+                      setDeleteDialogOpen(true);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
             </>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Lead</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir "{leadToDelete?.nome}"? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteLead} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AddLeadDialog 
         open={addDialogOpen} 

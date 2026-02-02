@@ -14,7 +14,8 @@ import {
   Zap,
   Inbox,
   Radio,
-  LogOut
+  LogOut,
+  UserCog
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -24,6 +25,7 @@ interface SidebarProps {
   userName?: string;
   userEmail?: string;
   onSignOut?: () => void;
+  isAdmin?: boolean;
 }
 
 const menuItems = [
@@ -39,7 +41,11 @@ const menuItems = [
   { id: 'configuracoes', label: 'Configurações', icon: Settings },
 ];
 
-export function Sidebar({ activeModule, onModuleChange, userName, userEmail, onSignOut }: SidebarProps) {
+const adminMenuItems = [
+  { id: 'usuarios', label: 'Gerenciar Usuários', icon: UserCog },
+];
+
+export function Sidebar({ activeModule, onModuleChange, userName, userEmail, onSignOut, isAdmin }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -100,6 +106,50 @@ export function Sidebar({ activeModule, onModuleChange, userName, userEmail, onS
             </button>
           );
         })}
+
+        {/* Admin-only menu items */}
+        {isAdmin && (
+          <>
+            <div className="pt-4 pb-2">
+              {!collapsed && (
+                <span className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Admin
+                </span>
+              )}
+            </div>
+            {adminMenuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeModule === item.id;
+              
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onModuleChange(item.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
+                    "hover:bg-sidebar-accent group",
+                    isActive 
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground" 
+                      : "text-sidebar-foreground"
+                  )}
+                >
+                  <Icon className={cn(
+                    "w-5 h-5 flex-shrink-0 transition-colors",
+                    isActive ? "text-primary" : "text-sidebar-foreground group-hover:text-primary"
+                  )} />
+                  {!collapsed && (
+                    <span className={cn(
+                      "font-medium text-sm truncate",
+                      isActive && "text-primary"
+                    )}>
+                      {item.label}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </>
+        )}
       </nav>
 
       {/* User Section */}

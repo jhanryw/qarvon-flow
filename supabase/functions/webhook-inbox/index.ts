@@ -67,6 +67,7 @@ serve(async (req) => {
           utm_medium: payload.lead_data.utm_medium,
           utm_campaign: payload.lead_data.utm_campaign,
           utm_content: payload.lead_data.utm_content,
+          criado_via: payload.channel_type || 'webhook'
         })
         .select()
         .single();
