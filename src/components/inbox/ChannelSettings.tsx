@@ -135,75 +135,149 @@ export function ChannelSettings() {
   const handleConnectWhatsApp = async (channel: SellerChannel) => {
     setConnectingChannel(channel.id);
     
-    // Simulate QR code generation - in production this would call Evolution API
-    const mockQrCode = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=whatsapp-connect-${channel.id}-${Date.now()}`;
-    
-    const updatedConfig: ChannelConfig = {
-      ...(channel.config as ChannelConfig || {}),
-      status: 'qr_ready',
-      qr_code: mockQrCode
-    };
-
-    const { error } = await supabase
-      .from('seller_channels')
-      .update({ config: updatedConfig as any })
-      .eq('id', channel.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: 'Não foi possível gerar o QR Code', variant: 'destructive' });
-    } else {
-      toast({ 
-        title: 'QR Code gerado!', 
-        description: 'Escaneie com seu WhatsApp para conectar' 
+    try {
+      // Generate a safe instance name from the channel
+      const instanceName = channel.instance_name
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .substring(0, 30);
+      
+      // Call Evolution API via edge function
+      const { data, error } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'create_instance',
+          instance_name: instanceName,
+          channel_id: channel.id,
+        },
       });
+
+      if (error) throw error;
+
+      if (data?.qr_code) {
+        // Update local state with QR code
+        const updatedConfig: ChannelConfig = {
+          ...(channel.config as ChannelConfig || {}),
+          status: 'qr_ready',
+          qr_code: data.qr_code,
+          evolution_instance: instanceName,
+        };
+
+        await supabase
+          .from('seller_channels')
+          .update({ config: updatedConfig as any })
+          .eq('id', channel.id);
+
+        toast({ 
+          title: 'QR Code gerado!', 
+          description: 'Escaneie com seu WhatsApp para conectar' 
+        });
+      } else if (data?.code) {
+        // Fallback: use QR code string to generate image
+        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.code)}`;
+        
+        const updatedConfig: ChannelConfig = {
+          ...(channel.config as ChannelConfig || {}),
+          status: 'qr_ready',
+          qr_code: qrImageUrl,
+          evolution_instance: instanceName,
+        };
+
+        await supabase
+          .from('seller_channels')
+          .update({ config: updatedConfig as any })
+          .eq('id', channel.id);
+
+        toast({ 
+          title: 'QR Code gerado!', 
+          description: 'Escaneie com seu WhatsApp para conectar' 
+        });
+      } else {
+        throw new Error('QR Code não retornado pela API');
+      }
+
       fetchChannels();
+    } catch (error: any) {
+      console.error('Error connecting WhatsApp:', error);
+      toast({ 
+        title: 'Erro', 
+        description: error.message || 'Não foi possível gerar o QR Code', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setConnectingChannel(null);
     }
-    
-    setConnectingChannel(null);
   };
 
-  const handleSimulateConnection = async (channel: SellerChannel) => {
-    const updatedConfig: ChannelConfig = {
-      ...(channel.config as ChannelConfig || {}),
-      status: 'connected',
-      qr_code: undefined,
-      last_connected: new Date().toISOString()
-    };
+  const handleCheckConnection = async (channel: SellerChannel) => {
+    const config = getChannelConfig(channel);
+    const instanceName = config.evolution_instance || channel.instance_name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '_')
+      .substring(0, 30);
 
-    const { error } = await supabase
-      .from('seller_channels')
-      .update({ 
-        config: updatedConfig as any,
-        is_active: true 
-      })
-      .eq('id', channel.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'get_status',
+          instance_name: instanceName,
+          channel_id: channel.id,
+        },
+      });
 
-    if (error) {
-      toast({ title: 'Erro', description: 'Não foi possível conectar', variant: 'destructive' });
-    } else {
-      toast({ title: 'WhatsApp conectado!', description: 'Suas conversas serão sincronizadas' });
+      if (error) throw error;
+
+      if (data?.connected) {
+        toast({ title: 'WhatsApp conectado!', description: 'Suas conversas serão sincronizadas' });
+      } else {
+        toast({ title: 'Aguardando conexão', description: 'Escaneie o QR Code com seu WhatsApp' });
+      }
+
       fetchChannels();
+    } catch (error: any) {
+      console.error('Error checking connection:', error);
+      toast({ 
+        title: 'Erro', 
+        description: error.message || 'Não foi possível verificar conexão', 
+        variant: 'destructive' 
+      });
     }
   };
 
   const handleDisconnect = async (channel: SellerChannel) => {
-    const updatedConfig: ChannelConfig = {
-      ...(channel.config as ChannelConfig || {}),
-      status: 'disconnected',
-      qr_code: undefined
-    };
+    const config = getChannelConfig(channel);
+    const instanceName = config.evolution_instance || channel.instance_name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '_')
+      .substring(0, 30);
 
-    const { error } = await supabase
-      .from('seller_channels')
-      .update({ 
-        config: updatedConfig as any,
-        is_active: false 
-      })
-      .eq('id', channel.id);
+    try {
+      await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'logout',
+          instance_name: instanceName,
+          channel_id: channel.id,
+        },
+      });
 
-    if (error) {
-      toast({ title: 'Erro', description: 'Não foi possível desconectar', variant: 'destructive' });
-    } else {
+      toast({ title: 'Canal desconectado' });
+      fetchChannels();
+    } catch (error: any) {
+      console.error('Error disconnecting:', error);
+      // Even if API fails, update local state
+      const updatedConfig: ChannelConfig = {
+        ...config,
+        status: 'disconnected',
+        qr_code: undefined
+      };
+
+      await supabase
+        .from('seller_channels')
+        .update({ 
+          config: updatedConfig as any,
+          is_active: false 
+        })
+        .eq('id', channel.id);
+
       toast({ title: 'Canal desconectado' });
       fetchChannels();
     }
@@ -285,17 +359,17 @@ export function ChannelSettings() {
                 alt="QR Code WhatsApp" 
                 className="w-48 h-48"
               />
-              <p className="text-xs text-gray-600 mt-2 text-center">
+              <p className="text-xs text-muted-foreground mt-2 text-center">
                 Abra o WhatsApp → Dispositivos conectados → Conectar dispositivo
               </p>
               <Button 
                 size="sm" 
                 variant="outline" 
                 className="mt-2"
-                onClick={() => handleSimulateConnection(channel)}
+                onClick={() => handleCheckConnection(channel)}
               >
-                <CheckCircle2 className="w-4 h-4 mr-1" />
-                Simular Conexão
+                <RefreshCw className="w-4 h-4 mr-1" />
+                Verificar Conexão
               </Button>
             </div>
           )}
@@ -305,11 +379,11 @@ export function ChannelSettings() {
             <div className="flex flex-col items-center p-4 bg-muted rounded-lg">
               <Instagram className="w-12 h-12 text-pink-500 mb-2" />
               <p className="text-sm text-muted-foreground text-center mb-3">
-                Conecte sua conta do Instagram Business
+                Conecte sua conta do Instagram via N8N
               </p>
-              <Button size="sm" variant="outline" onClick={() => handleSimulateConnection(channel)}>
+              <Button size="sm" variant="outline" disabled>
                 <ExternalLink className="w-4 h-4 mr-1" />
-                Conectar Instagram
+                Em breve
               </Button>
             </div>
           )}
