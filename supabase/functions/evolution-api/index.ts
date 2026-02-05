@@ -6,6 +6,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+function extractEvolutionError(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+
+  const directMessage = d.message;
+  if (typeof directMessage === 'string' && directMessage.trim()) return directMessage;
+  if (Array.isArray(directMessage)) {
+    const parts = directMessage.filter((x) => typeof x === 'string') as string[];
+    if (parts.length) return parts.join(' | ');
+  }
+
+  const directError = d.error;
+  if (typeof directError === 'string' && directError.trim()) return directError;
+
+  const response = d.response;
+  if (response && typeof response === 'object') {
+    const r = response as Record<string, unknown>;
+    const rMessage = r.message;
+    if (typeof rMessage === 'string' && rMessage.trim()) return rMessage;
+    if (Array.isArray(rMessage)) {
+      const parts = rMessage.filter((x) => typeof x === 'string') as string[];
+      if (parts.length) return parts.join(' | ');
+    }
+    const rError = r.error;
+    if (typeof rError === 'string' && rError.trim()) return rError;
+  }
+
+  return null;
+}
+
     interface EvolutionRequestBody {
       action: 'create_instance' | 'get_qr' | 'get_status' | 'logout' | 'delete_instance' | 'send_message' | 'fetch_instances';
   instance_name: string;
@@ -102,8 +132,24 @@ serve(async (req) => {
           }
     
         if (!response.ok) {
+          const evolutionError = extractEvolutionError(data) || 'Failed to create instance';
+          const evolutionErrorLower = evolutionError.toLowerCase();
+
+          // Name already taken: return a 409 so the frontend can ask for a different name
+          if (evolutionErrorLower.includes('already in use') || evolutionErrorLower.includes('já está em uso')) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: evolutionError,
+                code: 'INSTANCE_NAME_IN_USE',
+              }),
+              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
           // Check if instance already exists
-          if (data.message?.includes('already') || data.error?.includes('already')) {
+          // (Evolution v2 sometimes returns nested messages: data.response.message)
+          if (evolutionErrorLower.includes('already') || evolutionErrorLower.includes('exists')) {
             // Try to get QR code instead
             const qrResponse = await fetch(`${apiUrl}/instance/connect/${instance_name}`, {
               method: 'GET',
@@ -121,7 +167,16 @@ serve(async (req) => {
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
-          throw new Error(data.message || 'Failed to create instance');
+
+          // Surface Evolution's error message (instead of returning 500)
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: evolutionError,
+              status: response.status,
+            }),
+            { status: response.status || 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
 
         // Update channel config with instance info
