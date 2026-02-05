@@ -122,9 +122,10 @@ export function UnifiedInbox() {
     fetchMessages(conversation.id);
   };
 
-  const handleAcceptConversation = async (conversation: Conversation) => {
+  const handleAcceptConversation = async (conversation: Conversation, createLead: boolean = true) => {
     if (!user) return;
 
+    // Update conversation status
     const { error } = await supabase
       .from('inbox_conversations')
       .update({ 
@@ -135,10 +136,43 @@ export function UnifiedInbox() {
 
     if (error) {
       toast({ title: 'Erro', description: 'Não foi possível aceitar a conversa', variant: 'destructive' });
+      return;
+    }
+
+    // Create lead automatically when accepting
+    if (createLead && !conversation.lead_id) {
+      const { data: lead, error: leadError } = await supabase
+        .from('leads')
+        .insert({
+          nome: conversation.contact_name || 'Novo Lead',
+          telefone: conversation.contact_phone,
+          origem: conversation.origem || 'inbound',
+          responsavel_id: user.id,
+          status: 'novo',
+          criado_via: conversation.channel_type // 'whatsapp' or 'instagram'
+        })
+        .select()
+        .single();
+
+      if (!leadError && lead) {
+        // Link conversation to lead
+        await supabase
+          .from('inbox_conversations')
+          .update({ lead_id: lead.id })
+          .eq('id', conversation.id);
+
+        toast({ 
+          title: 'Conversa aceita', 
+          description: `Lead "${lead.nome}" criado automaticamente no CRM!` 
+        });
+      } else {
+        toast({ title: 'Conversa aceita', description: 'Agora você é responsável por essa conversa' });
+      }
     } else {
       toast({ title: 'Conversa aceita', description: 'Agora você é responsável por essa conversa' });
-      fetchConversations();
     }
+    
+    fetchConversations();
   };
 
   const handleRejectConversation = async (conversation: Conversation) => {
