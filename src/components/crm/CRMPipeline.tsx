@@ -16,7 +16,9 @@ import {
   Filter,
   Search,
   Loader2,
-  Trash2
+  Trash2,
+  Edit,
+  Instagram
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,6 +41,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { AddLeadDialog } from './AddLeadDialog';
+import { EditLeadDialog } from './EditLeadDialog';
 import { useToast } from '@/hooks/use-toast';
 
 type Lead = Tables<'leads'> & { criado_via?: string };
@@ -64,6 +67,12 @@ const origemLabels: Record<string, string> = {
   trafego_pago: 'Tráfego Pago'
 };
 
+const criadoViaLabels: Record<string, { label: string; icon: typeof MessageSquare; className: string }> = {
+  whatsapp: { label: 'WhatsApp', icon: MessageSquare, className: 'bg-green-500/20 text-green-400' },
+  instagram: { label: 'Instagram', icon: Instagram, className: 'bg-pink-500/20 text-pink-400' },
+  manual: { label: 'Manual', icon: Plus, className: 'bg-slate-500/20 text-slate-400' },
+};
+
 export function CRMPipeline() {
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
@@ -73,8 +82,10 @@ export function CRMPipeline() {
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
+  const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
 
   useEffect(() => {
     fetchLeads();
@@ -250,6 +261,19 @@ export function CRMPipeline() {
                       </div>
 
                       <div className="flex flex-wrap gap-1">
+                        {/* Canal badge (whatsapp/instagram) */}
+                        {lead.criado_via && criadoViaLabels[lead.criado_via] && (
+                          <Badge 
+                            variant="outline" 
+                            className={cn("text-[10px] px-1.5 flex items-center gap-1", criadoViaLabels[lead.criado_via].className)}
+                          >
+                            {(() => {
+                              const CanalIcon = criadoViaLabels[lead.criado_via].icon;
+                              return <CanalIcon className="w-2.5 h-2.5" />;
+                            })()}
+                            {criadoViaLabels[lead.criado_via].label}
+                          </Badge>
+                        )}
                         <Badge 
                           variant="outline" 
                           className={cn("text-[10px] px-1.5", getOrigemBadge(lead.origem))}
@@ -391,6 +415,16 @@ export function CRMPipeline() {
               )}
 
               <div className="flex gap-2 pt-4 border-t border-border">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setLeadToEdit(selectedLead);
+                    setEditDialogOpen(true);
+                  }}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Editar
+                </Button>
                 <Button variant="outline" className="flex-1">
                   <MessageSquare className="w-4 h-4 mr-2" />
                   WhatsApp
@@ -443,6 +477,16 @@ export function CRMPipeline() {
         open={addDialogOpen} 
         onOpenChange={setAddDialogOpen} 
         onLeadAdded={fetchLeads}
+      />
+
+      <EditLeadDialog 
+        open={editDialogOpen} 
+        onOpenChange={setEditDialogOpen} 
+        lead={leadToEdit}
+        onLeadUpdated={() => {
+          fetchLeads();
+          setSelectedLead(null);
+        }}
       />
     </div>
   );

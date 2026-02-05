@@ -37,7 +37,7 @@ function extractEvolutionError(data: unknown): string | null {
 }
 
     interface EvolutionRequestBody {
-      action: 'create_instance' | 'get_qr' | 'get_status' | 'logout' | 'delete_instance' | 'send_message' | 'fetch_instances';
+      action: 'create_instance' | 'get_qr' | 'get_status' | 'logout' | 'delete_instance' | 'send_message' | 'fetch_instances' | 'set_webhook';
   instance_name: string;
   channel_id?: string;
   message?: string;
@@ -90,6 +90,9 @@ serve(async (req) => {
         );
       }
     
+    // Get webhook URL for this project
+    const WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/evolution-webhook`;
+
     switch (action) {
       case 'create_instance': {
           const createUrl = `${apiUrl}/instance/create`;
@@ -106,6 +109,13 @@ serve(async (req) => {
             instanceName: instance_name,
             qrcode: true,
             integration: 'WHATSAPP-BAILEYS',
+            // Configure webhook to receive messages
+            webhook: {
+              url: WEBHOOK_URL,
+              byEvents: false,
+              base64: false,
+              events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE']
+            }
           }),
         });
 
@@ -125,6 +135,12 @@ serve(async (req) => {
                 instanceName: instance_name,
                 qrcode: true,
                 integration: 'WHATSAPP-BAILEYS',
+                webhook: {
+                  url: WEBHOOK_URL,
+                  byEvents: false,
+                  base64: false,
+                  events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE']
+                }
               }),
             });
             data = await response.json();
@@ -375,6 +391,71 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ success: true, message_id: data.key?.id }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'set_webhook': {
+        // Configure webhook for existing instance using Evolution API v2 format
+        console.log(`Setting webhook for instance: ${instance_name}`);
+        console.log(`Webhook URL: ${WEBHOOK_URL}`);
+        
+        // Evolution API v2 uses /instance/update to set webhook for existing instances
+        const response = await fetch(`${apiUrl}/instance/update/${instance_name}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': EVOLUTION_API_KEY,
+          },
+          body: JSON.stringify({
+            webhook: {
+              url: WEBHOOK_URL,
+              byEvents: false,
+              base64: false,
+              events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE']
+            }
+          }),
+        });
+
+        const data = await response.json();
+        console.log('Set webhook (update) response:', JSON.stringify(data));
+
+        // If update doesn't work, try direct webhook endpoint with instance object
+        if (!response.ok) {
+          console.log('Update failed, trying alternative endpoint...');
+          
+          const altResponse = await fetch(`${apiUrl}/instance/${instance_name}/webhook`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': EVOLUTION_API_KEY,
+            },
+            body: JSON.stringify({
+              url: WEBHOOK_URL,
+              enabled: true,
+              events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE']
+            }),
+          });
+          
+          const altData = await altResponse.json();
+          console.log('Set webhook (alt) response:', JSON.stringify(altData));
+          
+          if (!altResponse.ok) {
+            const errorMsg = extractEvolutionError(altData) || extractEvolutionError(data) || 'Failed to set webhook';
+            return new Response(
+              JSON.stringify({ success: false, error: errorMsg, hint: 'Webhook may need to be configured when creating the instance' }),
+              { status: altResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          return new Response(
+            JSON.stringify({ success: true, message: 'Webhook configured successfully (alternative method)' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Webhook configured successfully' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
