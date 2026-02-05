@@ -6,8 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-interface RequestBody {
-  action: 'create_instance' | 'get_qr' | 'get_status' | 'logout' | 'delete_instance' | 'send_message';
+    interface EvolutionRequestBody {
+      action: 'create_instance' | 'get_qr' | 'get_status' | 'logout' | 'delete_instance' | 'send_message' | 'fetch_instances';
   instance_name: string;
   channel_id?: string;
   message?: string;
@@ -32,8 +32,11 @@ serve(async (req) => {
       );
     }
 
+      console.log(`Using Evolution API URL: ${EVOLUTION_API_URL}`);
+      console.log(`API Key present: ${EVOLUTION_API_KEY ? 'Yes (length: ' + EVOLUTION_API_KEY.length + ')' : 'No'}`);
+    
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-    const body: RequestBody = await req.json();
+      const body: EvolutionRequestBody = await req.json();
     const { action, instance_name, channel_id, message, phone } = body;
 
     // Normalize API URL (remove trailing slash)
@@ -41,10 +44,29 @@ serve(async (req) => {
 
     console.log(`Evolution API action: ${action} for instance: ${instance_name}`);
 
+      // Try fetching existing instances first to validate API key
+      if (action === 'fetch_instances') {
+        const response = await fetch(`${apiUrl}/instance/fetchInstances`, {
+          method: 'GET',
+          headers: { 'apikey': EVOLUTION_API_KEY },
+        });
+    
+        const data = await response.json();
+        console.log('Fetch instances response:', JSON.stringify(data));
+    
+        return new Response(
+          JSON.stringify({ success: response.ok, instances: data }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    
     switch (action) {
       case 'create_instance': {
-        // Create a new instance in Evolution API
-        const response = await fetch(`${apiUrl}/instance/create`, {
+          const createUrl = `${apiUrl}/instance/create`;
+          console.log(`Creating instance at: ${createUrl}`);
+          
+          // Try with apikey header first (Evolution API v2 format)
+          let response = await fetch(createUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -57,9 +79,28 @@ serve(async (req) => {
           }),
         });
 
-        const data = await response.json();
+          let data = await response.json();
         console.log('Create instance response:', JSON.stringify(data));
 
+          // If unauthorized, try with Authorization Bearer header (alternative format)
+          if (response.status === 401) {
+            console.log('Trying with Authorization Bearer header...');
+            response = await fetch(createUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${EVOLUTION_API_KEY}`,
+              },
+              body: JSON.stringify({
+                instanceName: instance_name,
+                qrcode: true,
+                integration: 'WHATSAPP-BAILEYS',
+              }),
+            });
+            data = await response.json();
+            console.log('Create instance response (Bearer):', JSON.stringify(data));
+          }
+    
         if (!response.ok) {
           // Check if instance already exists
           if (data.message?.includes('already') || data.error?.includes('already')) {
