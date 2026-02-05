@@ -181,22 +181,34 @@ serve(async (req) => {
 
         // Update channel config with instance info
         if (channel_id) {
+          // Extract base64 if it already contains the prefix, or add it
+          let qrCodeValue = data.qrcode?.base64 || null;
+          if (qrCodeValue && !qrCodeValue.startsWith('data:')) {
+            qrCodeValue = `data:image/png;base64,${qrCodeValue}`;
+          }
+          
           await supabase
             .from('seller_channels')
             .update({
               config: {
                 status: 'qr_ready',
-                qr_code: data.qrcode?.base64 ? `data:image/png;base64,${data.qrcode.base64}` : null,
+                qr_code: qrCodeValue,
                 evolution_instance: instance_name,
               }
             })
             .eq('id', channel_id);
         }
 
+        // Return qr_code: already has prefix or add it
+        let returnQrCode = data.qrcode?.base64 || null;
+        if (returnQrCode && !returnQrCode.startsWith('data:')) {
+          returnQrCode = `data:image/png;base64,${returnQrCode}`;
+        }
+
         return new Response(
           JSON.stringify({ 
             success: true, 
-            qr_code: data.qrcode?.base64 ? `data:image/png;base64,${data.qrcode.base64}` : null,
+            qr_code: returnQrCode,
             instance: data.instance || instance_name 
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -218,15 +230,21 @@ serve(async (req) => {
         }
 
         const qrBase64 = data.base64 || data.qrcode?.base64;
+        
+        // Normalize: add prefix only if missing
+        let qrCodeValue = qrBase64 || null;
+        if (qrCodeValue && !qrCodeValue.startsWith('data:')) {
+          qrCodeValue = `data:image/png;base64,${qrCodeValue}`;
+        }
 
         // Update channel config
-        if (channel_id && qrBase64) {
+        if (channel_id && qrCodeValue) {
           await supabase
             .from('seller_channels')
             .update({
               config: {
                 status: 'qr_ready',
-                qr_code: `data:image/png;base64,${qrBase64}`,
+                qr_code: qrCodeValue,
                 evolution_instance: instance_name,
               }
             })
@@ -236,7 +254,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             success: true, 
-            qr_code: qrBase64 ? `data:image/png;base64,${qrBase64}` : null,
+            qr_code: qrCodeValue,
             code: data.code // QR code string for fallback
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
