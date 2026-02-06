@@ -98,7 +98,19 @@ serve(async (req) => {
           const createUrl = `${apiUrl}/instance/create`;
           console.log(`Creating instance at: ${createUrl}`);
           
-          // Try with apikey header first (Evolution API v2 format)
+          // Always delete existing instance first to avoid stale connections
+          console.log(`Pre-cleaning: deleting instance ${instance_name} if it exists...`);
+          try {
+            await fetch(`${apiUrl}/instance/delete/${instance_name}`, {
+              method: 'DELETE',
+              headers: { 'apikey': EVOLUTION_API_KEY },
+            });
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } catch (e) {
+            console.log('Pre-clean delete failed (may not exist), continuing...');
+          }
+          
+          // Create fresh instance
           let response = await fetch(createUrl, {
           method: 'POST',
           headers: {
