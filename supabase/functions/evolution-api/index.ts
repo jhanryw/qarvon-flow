@@ -202,19 +202,33 @@ serve(async (req) => {
           );
         }
 
-        // Update channel config with instance info
+        // Extract QR code — may come directly or need a separate connect call
+        let qrCodeValue = data.qrcode?.base64 || null;
+
+        // If no QR code in create response, fetch it via /instance/connect/
+        if (!qrCodeValue) {
+          console.log('No QR in create response, fetching via connect endpoint...');
+          const connectResponse = await fetch(`${apiUrl}/instance/connect/${instance_name}`, {
+            method: 'GET',
+            headers: { 'apikey': EVOLUTION_API_KEY },
+          });
+          const connectData = await connectResponse.json();
+          console.log('Connect response:', JSON.stringify(connectData));
+          qrCodeValue = connectData.base64 || connectData.qrcode?.base64 || null;
+        }
+
+        // Normalize prefix
+        if (qrCodeValue && !qrCodeValue.startsWith('data:')) {
+          qrCodeValue = `data:image/png;base64,${qrCodeValue}`;
+        }
+
+        // Update channel config
         if (channel_id) {
-          // Extract base64 if it already contains the prefix, or add it
-          let qrCodeValue = data.qrcode?.base64 || null;
-          if (qrCodeValue && !qrCodeValue.startsWith('data:')) {
-            qrCodeValue = `data:image/png;base64,${qrCodeValue}`;
-          }
-          
           await supabase
             .from('seller_channels')
             .update({
               config: {
-                status: 'qr_ready',
+                status: qrCodeValue ? 'qr_ready' : 'connecting',
                 qr_code: qrCodeValue,
                 evolution_instance: instance_name,
               }
@@ -222,16 +236,10 @@ serve(async (req) => {
             .eq('id', channel_id);
         }
 
-        // Return qr_code: already has prefix or add it
-        let returnQrCode = data.qrcode?.base64 || null;
-        if (returnQrCode && !returnQrCode.startsWith('data:')) {
-          returnQrCode = `data:image/png;base64,${returnQrCode}`;
-        }
-
         return new Response(
           JSON.stringify({ 
             success: true, 
-            qr_code: returnQrCode,
+            qr_code: qrCodeValue,
             instance: data.instance || instance_name 
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
