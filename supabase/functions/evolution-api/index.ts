@@ -151,28 +151,71 @@ serve(async (req) => {
           const evolutionError = extractEvolutionError(data) || 'Failed to create instance';
           const evolutionErrorLower = evolutionError.toLowerCase();
 
-          // Instance already exists — try to get QR code instead of failing
+          // Instance already exists — delete it and recreate
           if (evolutionErrorLower.includes('already in use') || evolutionErrorLower.includes('já está em uso') || evolutionErrorLower.includes('already') || evolutionErrorLower.includes('exists')) {
-            console.log('Instance already exists, fetching QR code...');
-            const qrResponse = await fetch(`${apiUrl}/instance/connect/${instance_name}`, {
-              method: 'GET',
+            console.log('Instance already exists, deleting and recreating...');
+            
+            // Delete existing instance
+            await fetch(`${apiUrl}/instance/delete/${instance_name}`, {
+              method: 'DELETE',
               headers: { 'apikey': EVOLUTION_API_KEY },
             });
-            const qrData = await qrResponse.json();
-            console.log('Existing instance QR response:', JSON.stringify(qrData));
-
-            let qrCodeValue = qrData.base64 || qrData.qrcode?.base64 || null;
+            
+            // Wait a moment for deletion to process
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Recreate instance
+            const recreateResponse = await fetch(createUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': EVOLUTION_API_KEY,
+              },
+              body: JSON.stringify({
+                instanceName: instance_name,
+                qrcode: true,
+                integration: 'WHATSAPP-BAILEYS',
+                webhook: {
+                  url: WEBHOOK_URL,
+                  byEvents: false,
+                  base64: false,
+                  events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE']
+                }
+              }),
+            });
+            
+            const recreateData = await recreateResponse.json();
+            console.log('Recreate instance response:', JSON.stringify(recreateData));
+            
+            // Get QR code from recreated instance
+            let qrCodeValue = recreateData.qrcode?.base64 || null;
+            
+            // Poll connect endpoint if no QR in response
+            if (!qrCodeValue) {
+              for (let attempt = 0; attempt < 8; attempt++) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                console.log(`Connect attempt ${attempt + 1}/8 (recreated)...`);
+                const connectResp = await fetch(`${apiUrl}/instance/connect/${instance_name}`, {
+                  method: 'GET',
+                  headers: { 'apikey': EVOLUTION_API_KEY },
+                });
+                const connectData = await connectResp.json();
+                console.log('Connect response:', JSON.stringify(connectData));
+                qrCodeValue = connectData.base64 || connectData.qrcode?.base64 || null;
+                if (qrCodeValue) break;
+              }
+            }
+            
             if (qrCodeValue && !qrCodeValue.startsWith('data:')) {
               qrCodeValue = `data:image/png;base64,${qrCodeValue}`;
             }
 
-            // Update channel config
-            if (channel_id && qrCodeValue) {
+            if (channel_id) {
               await supabase
                 .from('seller_channels')
                 .update({
                   config: {
-                    status: 'qr_ready',
+                    status: qrCodeValue ? 'qr_ready' : 'connecting',
                     qr_code: qrCodeValue,
                     evolution_instance: instance_name,
                   }
@@ -185,7 +228,6 @@ serve(async (req) => {
                 success: true, 
                 qr_code: qrCodeValue,
                 instance: instance_name,
-                message: 'Instance already exists, QR code generated'
               }),
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
