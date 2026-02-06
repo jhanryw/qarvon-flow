@@ -113,9 +113,33 @@ serve(async (req) => {
               const state = statusData.state || statusData.instance?.state;
               
               if (state === 'open') {
-                // Already connected! Just update channel and return
+                // Already connected! Configure webhook and update channel
                 existingConnected = true;
-                console.log('Instance already connected!');
+                console.log('Instance already connected! Setting webhook...');
+                
+                // Always set/update webhook on existing instances
+                try {
+                  const webhookResp = await fetch(`${apiUrl}/webhook/set/${instance_name}`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'apikey': EVOLUTION_API_KEY,
+                    },
+                    body: JSON.stringify({
+                      webhook: {
+                        enabled: true,
+                        url: WEBHOOK_URL,
+                        byEvents: false,
+                        base64: false,
+                        events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE']
+                      }
+                    }),
+                  });
+                  const webhookData = await webhookResp.json();
+                  console.log('Webhook set response:', JSON.stringify(webhookData));
+                } catch (whErr) {
+                  console.error('Failed to set webhook (non-fatal):', whErr);
+                }
                 
                 if (channel_id) {
                   await supabase
