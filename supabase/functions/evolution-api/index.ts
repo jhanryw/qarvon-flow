@@ -98,19 +98,94 @@ serve(async (req) => {
           const createUrl = `${apiUrl}/instance/create`;
           console.log(`Creating instance at: ${createUrl}`);
           
-          // Always delete existing instance first to avoid stale connections
-          console.log(`Pre-cleaning: deleting instance ${instance_name} if it exists...`);
+          // First, check if instance already exists and its status
+          let existingConnected = false;
+          let existingQr: string | null = null;
           try {
-            await fetch(`${apiUrl}/instance/delete/${instance_name}`, {
-              method: 'DELETE',
+            console.log(`Checking if instance ${instance_name} already exists...`);
+            const statusResp = await fetch(`${apiUrl}/instance/connectionState/${instance_name}`, {
+              method: 'GET',
               headers: { 'apikey': EVOLUTION_API_KEY },
             });
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            if (statusResp.ok) {
+              const statusData = await statusResp.json();
+              console.log('Existing instance status:', JSON.stringify(statusData));
+              const state = statusData.state || statusData.instance?.state;
+              
+              if (state === 'open') {
+                // Already connected! Just update channel and return
+                existingConnected = true;
+                console.log('Instance already connected!');
+                
+                if (channel_id) {
+                  await supabase
+                    .from('seller_channels')
+                    .update({
+                      config: {
+                        status: 'connected',
+                        evolution_instance: instance_name,
+                        last_connected: new Date().toISOString(),
+                      },
+                      is_active: true
+                    })
+                    .eq('id', channel_id);
+                }
+                
+                return new Response(
+                  JSON.stringify({ 
+                    success: true, 
+                    already_connected: true,
+                    instance: instance_name,
+                  }),
+                  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+              }
+              
+              // Instance exists but not connected - try to get QR
+              if (state === 'connecting' || state === 'close') {
+                console.log('Instance exists but not connected, fetching QR...');
+                const connectResp = await fetch(`${apiUrl}/instance/connect/${instance_name}`, {
+                  method: 'GET',
+                  headers: { 'apikey': EVOLUTION_API_KEY },
+                });
+                const connectData = await connectResp.json();
+                console.log('Connect response for existing:', JSON.stringify(connectData));
+                existingQr = connectData.base64 || connectData.qrcode?.base64 || null;
+                
+                if (existingQr) {
+                  if (!existingQr.startsWith('data:')) {
+                    existingQr = `data:image/png;base64,${existingQr}`;
+                  }
+                  
+                  if (channel_id) {
+                    await supabase
+                      .from('seller_channels')
+                      .update({
+                        config: {
+                          status: 'qr_ready',
+                          qr_code: existingQr,
+                          evolution_instance: instance_name,
+                        }
+                      })
+                      .eq('id', channel_id);
+                  }
+                  
+                  return new Response(
+                    JSON.stringify({ 
+                      success: true, 
+                      qr_code: existingQr,
+                      instance: instance_name,
+                    }),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                  );
+                }
+              }
+            }
           } catch (e) {
-            console.log('Pre-clean delete failed (may not exist), continuing...');
+            console.log('Instance does not exist or check failed, will create new:', e);
           }
           
-          // Create fresh instance
+          // Instance doesn't exist or couldn't get QR - create fresh
           let response = await fetch(createUrl, {
           method: 'POST',
           headers: {

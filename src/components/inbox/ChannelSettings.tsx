@@ -136,11 +136,8 @@ export function ChannelSettings() {
     setConnectingChannel(channel.id);
     
     try {
-      // Generate a safe instance name from the channel
-      const instanceName = channel.instance_name
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '_')
-        .substring(0, 30);
+      // Use instance name as-is (user may reference existing Evolution instances)
+      const instanceName = channel.instance_name;
       
       // Call Evolution API via edge function
       const { data, error } = await supabase.functions.invoke('evolution-api', {
@@ -153,20 +150,12 @@ export function ChannelSettings() {
 
       if (error) throw error;
 
-      if (data?.qr_code) {
-        // Update local state with QR code
-        const updatedConfig: ChannelConfig = {
-          ...(channel.config as ChannelConfig || {}),
-          status: 'qr_ready',
-          qr_code: data.qr_code,
-          evolution_instance: instanceName,
-        };
-
-        await supabase
-          .from('seller_channels')
-          .update({ config: updatedConfig as any })
-          .eq('id', channel.id);
-
+      if (data?.already_connected) {
+        toast({ 
+          title: 'WhatsApp já conectado!', 
+          description: 'Esta instância já está ativa e funcionando' 
+        });
+      } else if (data?.qr_code) {
         toast({ 
           title: 'QR Code gerado!', 
           description: 'Escaneie com seu WhatsApp para conectar' 
