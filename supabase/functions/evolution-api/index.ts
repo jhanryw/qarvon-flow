@@ -151,32 +151,39 @@ serve(async (req) => {
           const evolutionError = extractEvolutionError(data) || 'Failed to create instance';
           const evolutionErrorLower = evolutionError.toLowerCase();
 
-          // Name already taken: return a 409 so the frontend can ask for a different name
-          if (evolutionErrorLower.includes('already in use') || evolutionErrorLower.includes('já está em uso')) {
-            return new Response(
-              JSON.stringify({
-                success: false,
-                error: evolutionError,
-                code: 'INSTANCE_NAME_IN_USE',
-              }),
-              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-
-          // Check if instance already exists
-          // (Evolution v2 sometimes returns nested messages: data.response.message)
-          if (evolutionErrorLower.includes('already') || evolutionErrorLower.includes('exists')) {
-            // Try to get QR code instead
+          // Instance already exists — try to get QR code instead of failing
+          if (evolutionErrorLower.includes('already in use') || evolutionErrorLower.includes('já está em uso') || evolutionErrorLower.includes('already') || evolutionErrorLower.includes('exists')) {
+            console.log('Instance already exists, fetching QR code...');
             const qrResponse = await fetch(`${apiUrl}/instance/connect/${instance_name}`, {
               method: 'GET',
               headers: { 'apikey': EVOLUTION_API_KEY },
             });
             const qrData = await qrResponse.json();
-            
+            console.log('Existing instance QR response:', JSON.stringify(qrData));
+
+            let qrCodeValue = qrData.base64 || qrData.qrcode?.base64 || null;
+            if (qrCodeValue && !qrCodeValue.startsWith('data:')) {
+              qrCodeValue = `data:image/png;base64,${qrCodeValue}`;
+            }
+
+            // Update channel config
+            if (channel_id && qrCodeValue) {
+              await supabase
+                .from('seller_channels')
+                .update({
+                  config: {
+                    status: 'qr_ready',
+                    qr_code: qrCodeValue,
+                    evolution_instance: instance_name,
+                  }
+                })
+                .eq('id', channel_id);
+            }
+
             return new Response(
               JSON.stringify({ 
                 success: true, 
-                qr_code: qrData.base64 || qrData.qrcode?.base64,
+                qr_code: qrCodeValue,
                 instance: instance_name,
                 message: 'Instance already exists, QR code generated'
               }),
