@@ -205,16 +205,22 @@ serve(async (req) => {
         // Extract QR code — may come directly or need a separate connect call
         let qrCodeValue = data.qrcode?.base64 || null;
 
-        // If no QR code in create response, fetch it via /instance/connect/
+        // If no QR code in create response, poll connect endpoint with retries
         if (!qrCodeValue) {
-          console.log('No QR in create response, fetching via connect endpoint...');
-          const connectResponse = await fetch(`${apiUrl}/instance/connect/${instance_name}`, {
-            method: 'GET',
-            headers: { 'apikey': EVOLUTION_API_KEY },
-          });
-          const connectData = await connectResponse.json();
-          console.log('Connect response:', JSON.stringify(connectData));
-          qrCodeValue = connectData.base64 || connectData.qrcode?.base64 || null;
+          console.log('No QR in create response, polling connect endpoint...');
+          for (let attempt = 0; attempt < 5; attempt++) {
+            // Wait before each attempt (1s, 2s, 3s, 4s, 5s)
+            await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
+            console.log(`Connect attempt ${attempt + 1}/5...`);
+            const connectResponse = await fetch(`${apiUrl}/instance/connect/${instance_name}`, {
+              method: 'GET',
+              headers: { 'apikey': EVOLUTION_API_KEY },
+            });
+            const connectData = await connectResponse.json();
+            console.log('Connect response:', JSON.stringify(connectData));
+            qrCodeValue = connectData.base64 || connectData.qrcode?.base64 || null;
+            if (qrCodeValue) break;
+          }
         }
 
         // Normalize prefix
