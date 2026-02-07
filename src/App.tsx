@@ -9,6 +9,10 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
+// ✅ NOVOS IMPORTS
+import Kanban from "./pages/Operations/Kanban";
+import Calendar from "./pages/Operations/Calendar";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -20,14 +24,36 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route 
-              path="/" 
+
+            {/* ✅ HOME */}
+            <Route
+              path="/"
               element={
                 <ProtectedRoute>
                   <Index />
                 </ProtectedRoute>
-              } 
+              }
             />
+
+            {/* ✅ OPERACIONAL */}
+            <Route
+              path="/operacional/kanban"
+              element={
+                <ProtectedRoute>
+                  <Kanban />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/operacional/calendario"
+              element={
+                <ProtectedRoute>
+                  <Calendar />
+                </ProtectedRoute>
+              }
+            />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
