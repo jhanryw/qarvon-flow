@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { Sidebar } from '@/components/layout/Sidebar.tsx';
 import { Header } from '@/components/layout/Header';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { CRMPipeline } from '@/components/crm/CRMPipeline';
