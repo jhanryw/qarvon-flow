@@ -1,3 +1,5 @@
+function OperacionalView() {
+
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DayPicker } from "react-day-picker";
@@ -59,4 +61,7 @@ async function fetchCalendar(): Promise<CalendarRow[]> {
 
   if (error) throw error;
   return (data ?? []) as CalendarRow[];
-}
+}}
+
+export { OperacionalView };
+export default OperacionalView;
