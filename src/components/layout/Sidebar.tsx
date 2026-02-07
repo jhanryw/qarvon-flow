@@ -29,7 +29,7 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'dashboard', label: 'Dashboard TESTE', icon: LayoutDashboard },
   { id: 'inbox', label: 'Inbox Unificado', icon: Inbox },
   { id: 'canais', label: 'Configurar Canais', icon: Radio },
   { id: 'crm', label: 'CRM', icon: Users },
