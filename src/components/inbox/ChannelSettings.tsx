@@ -61,6 +61,7 @@ export function ChannelSettings() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [connectingChannel, setConnectingChannel] = useState<string | null>(null);
+  const [syncingChannel, setSyncingChannel] = useState<string | null>(null);
   const [newChannel, setNewChannel] = useState({
     channel_type: 'whatsapp' as 'whatsapp' | 'instagram',
     instance_name: '',
@@ -286,6 +287,37 @@ export function ChannelSettings() {
     }
   };
 
+  const handleSyncMessages = async (channel: SellerChannel) => {
+    const config = getChannelConfig(channel);
+    const instanceName = config.evolution_instance || channel.instance_name;
+    
+    setSyncingChannel(channel.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'sync_messages',
+          instance_name: instanceName,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({ 
+        title: 'Sincronização concluída!', 
+        description: `${data?.synced || 0} conversas importadas${data?.errors ? `, ${data.errors} erros` : ''}` 
+      });
+    } catch (error: any) {
+      console.error('Error syncing messages:', error);
+      toast({ 
+        title: 'Erro na sincronização', 
+        description: error.message || 'Não foi possível sincronizar as mensagens', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setSyncingChannel(null);
+    }
+  };
+
   const getSellerName = (userId: string) => {
     const seller = sellers.find(s => s.id === userId);
     return seller?.nome || 'Desconhecido';
@@ -410,14 +442,29 @@ export function ChannelSettings() {
             )}
             
             {config.status === 'connected' && (
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => handleDisconnect(channel)}
-              >
-                <WifiOff className="w-4 h-4 mr-1" />
-                Desconectar
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => handleSyncMessages(channel)}
+                  disabled={syncingChannel === channel.id}
+                >
+                  {syncingChannel === channel.id ? (
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-1" />
+                  )}
+                  Sincronizar
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => handleDisconnect(channel)}
+                >
+                  <WifiOff className="w-4 h-4 mr-1" />
+                  Desconectar
+                </Button>
+              </>
             )}
 
             {config.status === 'qr_ready' && (

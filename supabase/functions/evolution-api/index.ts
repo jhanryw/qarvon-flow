@@ -37,7 +37,7 @@ function extractEvolutionError(data: unknown): string | null {
 }
 
     interface EvolutionRequestBody {
-      action: 'create_instance' | 'get_qr' | 'get_status' | 'logout' | 'delete_instance' | 'send_message' | 'fetch_instances' | 'set_webhook';
+      action: 'create_instance' | 'get_qr' | 'get_status' | 'logout' | 'delete_instance' | 'send_message' | 'fetch_instances' | 'set_webhook' | 'sync_messages';
   instance_name: string;
   channel_id?: string;
   message?: string;
@@ -630,6 +630,210 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ success: true, message: 'Webhook configured successfully' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'sync_messages': {
+        // Fetch all chats from Evolution API and import into inbox
+        console.log(`Syncing messages for instance: ${instance_name}`);
+        
+        // 1. Get all chats
+        const chatsResp = await fetch(`${apiUrl}/chat/findChats/${instance_name}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': EVOLUTION_API_KEY,
+          },
+          body: JSON.stringify({}),
+        });
+        
+        if (!chatsResp.ok) {
+          const errData = await chatsResp.json();
+          console.error('findChats error:', JSON.stringify(errData));
+          return new Response(
+            JSON.stringify({ error: 'Failed to fetch chats', details: extractEvolutionError(errData) }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        const chats = await chatsResp.json();
+        console.log(`Found ${Array.isArray(chats) ? chats.length : 0} chats`);
+        
+        if (!Array.isArray(chats) || chats.length === 0) {
+          return new Response(
+            JSON.stringify({ success: true, synced: 0, message: 'No chats found' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        let syncedCount = 0;
+        let errorsCount = 0;
+        
+        for (const chat of chats) {
+          try {
+            // Skip groups
+            const remoteJid = chat.id || chat.remoteJid || '';
+            if (remoteJid.includes('@g.us') || !remoteJid.includes('@')) continue;
+            
+            const phoneNumber = remoteJid.split('@')[0];
+            const contactName = chat.name || chat.pushName || chat.contact?.name || phoneNumber;
+            
+            // Check if conversation already exists
+            const { data: existing } = await supabase
+              .from('inbox_conversations')
+              .select('id')
+              .eq('external_contact_id', phoneNumber)
+              .eq('channel_type', 'whatsapp')
+              .single();
+            
+            let conversationId: string;
+            
+            if (existing) {
+              conversationId = existing.id;
+            } else {
+              // Create conversation
+              const { data: newConv, error: convErr } = await supabase
+                .from('inbox_conversations')
+                .insert({
+                  channel_type: 'whatsapp',
+                  external_contact_id: phoneNumber,
+                  contact_name: contactName,
+                  contact_phone: phoneNumber,
+                  status: 'pendente',
+                  origem: 'inbound',
+                  unread_count: 0,
+                })
+                .select()
+                .single();
+              
+              if (convErr) {
+                console.error(`Error creating conversation for ${phoneNumber}:`, convErr);
+                errorsCount++;
+                continue;
+              }
+              conversationId = newConv.id;
+            }
+            
+            // 2. Fetch messages for this chat
+            const msgsResp = await fetch(`${apiUrl}/chat/findMessages/${instance_name}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': EVOLUTION_API_KEY,
+              },
+              body: JSON.stringify({
+                where: {
+                  key: {
+                    remoteJid: remoteJid,
+                  }
+                },
+                limit: 50,
+              }),
+            });
+            
+            if (!msgsResp.ok) {
+              console.error(`Failed to fetch messages for ${remoteJid}`);
+              errorsCount++;
+              continue;
+            }
+            
+            const msgs = await msgsResp.json();
+            const messageArray = Array.isArray(msgs) ? msgs : (msgs.messages || []);
+            
+            if (messageArray.length === 0) continue;
+            
+            // Get existing message count to avoid duplicates
+            const { count: existingMsgCount } = await supabase
+              .from('inbox_messages')
+              .select('id', { count: 'exact', head: true })
+              .eq('conversation_id', conversationId);
+            
+            // Only import if conversation has no messages yet
+            if ((existingMsgCount || 0) > 0) {
+              console.log(`Conversation ${phoneNumber} already has messages, skipping`);
+              syncedCount++;
+              continue;
+            }
+            
+            // Insert messages
+            const messagesToInsert = messageArray.map((msg: any) => {
+              const fromMe = msg.key?.fromMe || false;
+              let content = '';
+              
+              if (msg.message?.conversation) {
+                content = msg.message.conversation;
+              } else if (msg.message?.extendedTextMessage?.text) {
+                content = msg.message.extendedTextMessage.text;
+              } else if (msg.message?.imageMessage) {
+                content = msg.message.imageMessage.caption || '[Imagem]';
+              } else if (msg.message?.audioMessage) {
+                content = '[Áudio]';
+              } else if (msg.message?.documentMessage) {
+                content = `[Documento: ${msg.message.documentMessage.fileName || 'arquivo'}]`;
+              } else {
+                content = '[Mensagem]';
+              }
+              
+              if (!content) content = '[Mensagem]';
+              
+              const timestamp = msg.messageTimestamp
+                ? new Date(typeof msg.messageTimestamp === 'number' 
+                    ? msg.messageTimestamp * 1000 
+                    : msg.messageTimestamp
+                  ).toISOString()
+                : new Date().toISOString();
+              
+              return {
+                conversation_id: conversationId,
+                sender_type: fromMe ? 'seller' : 'contact',
+                content,
+                is_read: true,
+                created_at: timestamp,
+              };
+            }).filter((m: any) => m.content && m.content !== '[Mensagem]');
+            
+            if (messagesToInsert.length > 0) {
+              const { error: insertErr } = await supabase
+                .from('inbox_messages')
+                .insert(messagesToInsert);
+              
+              if (insertErr) {
+                console.error(`Error inserting messages for ${phoneNumber}:`, insertErr);
+                errorsCount++;
+              } else {
+                // Update conversation with last message info
+                const lastMsg = messagesToInsert[messagesToInsert.length - 1];
+                await supabase
+                  .from('inbox_conversations')
+                  .update({
+                    last_message: lastMsg.content,
+                    last_message_at: lastMsg.created_at,
+                    unread_count: messagesToInsert.filter((m: any) => m.sender_type === 'contact').length,
+                  })
+                  .eq('id', conversationId);
+                
+                syncedCount++;
+              }
+            } else {
+              syncedCount++;
+            }
+          } catch (chatErr) {
+            console.error('Error processing chat:', chatErr);
+            errorsCount++;
+          }
+        }
+        
+        console.log(`Sync complete: ${syncedCount} synced, ${errorsCount} errors`);
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            synced: syncedCount,
+            errors: errorsCount,
+            total_chats: chats.length,
+            message: `${syncedCount} conversas sincronizadas`
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
