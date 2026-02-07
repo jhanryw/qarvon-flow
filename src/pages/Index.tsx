@@ -3,7 +3,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { CRMPipeline } from '@/components/crm/CRMPipeline';
-import OperacionalView from '@/components/operacional/OperacionalView';
+import { OperacionalView } from '@/components/operacional/OperacionalView';
 import { CadenceFlow } from '@/components/cadencias/CadenceFlow';
 import { ObjectionMatrix } from '@/components/objecoes/ObjectionMatrix';
 import { ScriptsView } from '@/components/scripts/ScriptsView';
