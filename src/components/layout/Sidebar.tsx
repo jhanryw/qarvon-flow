@@ -66,6 +66,9 @@ export function Sidebar({ activeModule, onModuleChange, userName, userEmail, onS
             <span className="font-bold text-lg text-foreground">Qarvon</span>
           </div>
         )}
+        <div className="px-4 py-2 text-xs text-red-500">
+          SIDEBAR CUSTOM ATIVA ✅
+        </div>
         <button 
           onClick={() => setCollapsed(!collapsed)}
           className="p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-foreground transition-colors"
