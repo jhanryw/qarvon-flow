@@ -638,31 +638,58 @@ serve(async (req) => {
         // Fetch all chats from Evolution API and import into inbox
         console.log(`Syncing messages for instance: ${instance_name}`);
         
-        // 1. Get all chats
-        const chatsResp = await fetch(`${apiUrl}/chat/findChats/${instance_name}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': EVOLUTION_API_KEY,
-          },
-          body: JSON.stringify({}),
-        });
+        // 1. Get all contacts (using findContacts instead of findChats to avoid Evolution API mediaUrl bug)
+        let contacts: any[] = [];
         
-        if (!chatsResp.ok) {
-          const errData = await chatsResp.json();
-          console.error('findChats error:', JSON.stringify(errData));
-          return new Response(
-            JSON.stringify({ error: 'Failed to fetch chats', details: extractEvolutionError(errData) }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+        // Try findContacts first (more reliable)
+        try {
+          const contactsResp = await fetch(`${apiUrl}/chat/findContacts/${instance_name}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': EVOLUTION_API_KEY,
+            },
+            body: JSON.stringify({}),
+          });
+          
+          if (contactsResp.ok) {
+            contacts = await contactsResp.json();
+            console.log(`findContacts returned ${Array.isArray(contacts) ? contacts.length : 0} contacts`);
+          } else {
+            const errText = await contactsResp.text();
+            console.error('findContacts failed:', errText);
+          }
+        } catch (e) {
+          console.error('findContacts error:', e);
         }
         
-        const chats = await chatsResp.json();
-        console.log(`Found ${Array.isArray(chats) ? chats.length : 0} chats`);
+        // Fallback: try findChats if findContacts failed
+        if (!Array.isArray(contacts) || contacts.length === 0) {
+          try {
+            const chatsResp = await fetch(`${apiUrl}/chat/findChats/${instance_name}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': EVOLUTION_API_KEY,
+              },
+              body: JSON.stringify({}),
+            });
+            
+            if (chatsResp.ok) {
+              contacts = await chatsResp.json();
+              console.log(`findChats fallback returned ${Array.isArray(contacts) ? contacts.length : 0} chats`);
+            } else {
+              const errText = await chatsResp.text();
+              console.error('findChats fallback also failed:', errText);
+            }
+          } catch (e) {
+            console.error('findChats fallback error:', e);
+          }
+        }
         
-        if (!Array.isArray(chats) || chats.length === 0) {
+        if (!Array.isArray(contacts) || contacts.length === 0) {
           return new Response(
-            JSON.stringify({ success: true, synced: 0, message: 'No chats found' }),
+            JSON.stringify({ success: true, synced: 0, message: 'Nenhum contato encontrado na instância' }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -670,14 +697,14 @@ serve(async (req) => {
         let syncedCount = 0;
         let errorsCount = 0;
         
-        for (const chat of chats) {
+        for (const contact of contacts) {
           try {
-            // Skip groups
-            const remoteJid = chat.id || chat.remoteJid || '';
-            if (remoteJid.includes('@g.us') || !remoteJid.includes('@')) continue;
+            // Skip groups and invalid entries
+            const remoteJid = contact.id || contact.remoteJid || contact.jid || '';
+            if (remoteJid.includes('@g.us') || remoteJid.includes('@lid') || !remoteJid.includes('@')) continue;
             
             const phoneNumber = remoteJid.split('@')[0];
-            const contactName = chat.name || chat.pushName || chat.contact?.name || phoneNumber;
+            const contactName = contact.pushName || contact.name || contact.formattedName || contact.contact?.name || phoneNumber;
             
             // Check if conversation already exists
             const { data: existing } = await supabase
@@ -831,7 +858,7 @@ serve(async (req) => {
             success: true, 
             synced: syncedCount,
             errors: errorsCount,
-            total_chats: chats.length,
+            total_contacts: contacts.length,
             message: `${syncedCount} conversas sincronizadas`
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
