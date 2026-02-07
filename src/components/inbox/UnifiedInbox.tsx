@@ -346,28 +346,29 @@ export function UnifiedInbox() {
                       </div>
 
                       {activeTab === 'pendente' && (
-                        <div className="flex gap-2 mt-3">
+                        <div className="flex gap-1 mt-2">
                           <Button
                             size="sm"
                             variant="outline"
-                            className="flex-1"
+                            className="flex-1 h-7 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleAcceptConversation(conversation);
                             }}
                           >
-                            <Check className="w-4 h-4 mr-1" />
+                            <Check className="w-3 h-3 mr-1" />
                             Aceitar
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
+                            className="h-7 w-7 p-0"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleRejectConversation(conversation);
                             }}
                           >
-                            <X className="w-4 h-4" />
+                            <X className="w-3 h-3" />
                           </Button>
                         </div>
                       )}
