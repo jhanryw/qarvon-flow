@@ -3,6 +3,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { CRMPipeline } from '@/components/crm/CRMPipeline';
+import { OperacionalView } from '@/components/operacional/OperacionalView';
 import { CadenceFlow } from '@/components/cadencias/CadenceFlow';
 import { ObjectionMatrix } from '@/components/objecoes/ObjectionMatrix';
 import { ScriptsView } from '@/components/scripts/ScriptsView';
@@ -19,6 +20,7 @@ const moduleConfig: Record<string, { title: string; subtitle: string }> = {
   inbox: { title: 'Inbox Unificado', subtitle: 'WhatsApp + Instagram' },
   canais: { title: 'Configurar Canais', subtitle: 'WhatsApp e Instagram por vendedor' },
   crm: { title: 'CRM', subtitle: 'Gestão de leads e pipeline' },
+  operacional: { title: 'Operacional', subtitle: 'Kanban e calendário por cliente' },
   cadencias: { title: 'Cadências', subtitle: 'Fluxos de abordagem' },
   objecoes: { title: 'Matriz de Objeções', subtitle: 'Respostas para objeções' },
   scripts: { title: 'Scripts', subtitle: 'Roteiros de vendas' },
@@ -42,6 +44,8 @@ const Index = () => {
         return <ChannelSettings />;
       case 'crm':
         return <CRMPipeline />;
+      case 'operacional':
+        return <OperacionalView />;
       case 'cadencias':
         return <CadenceFlow />;
       case 'objecoes':
