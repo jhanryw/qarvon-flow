@@ -33,7 +33,7 @@ const menuItems = [
   { id: 'inbox', label: 'Inbox Unificado', icon: Inbox },
   { id: 'canais', label: 'Configurar Canais', icon: Radio },
   { id: 'crm', label: 'CRM', icon: Users },
-  { id: "operacional", label: "Operacional", icon: MessageSquare },
+  { id: 'operacional', label: 'Operacional', icon: MessageSquare },
   { id: 'cadencias', label: 'Cadências', icon: MessageSquare },
   { id: 'objecoes', label: 'Matriz de Objeções', icon: Target },
   { id: 'scripts', label: 'Scripts', icon: FileText },
