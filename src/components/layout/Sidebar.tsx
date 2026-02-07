@@ -32,7 +32,7 @@ const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'inbox', label: 'Inbox Unificado', icon: Inbox },
   { id: 'canais', label: 'Configurar Canais', icon: Radio },
-  { id: 'crm', label: 'CRMzinho', icon: Users },
+  { id: 'crm', label: 'CRM', icon: Users },
   { id: 'operacional', label: 'Operacional', icon: MessageSquare },
   { id: 'cadencias', label: 'Cadências', icon: MessageSquare },
   { id: 'objecoes', label: 'Matriz de Objeções', icon: Target },
@@ -66,9 +66,6 @@ export function Sidebar({ activeModule, onModuleChange, userName, userEmail, onS
             <span className="font-bold text-lg text-foreground">Qarvon</span>
           </div>
         )}
-        <div className="px-4 py-2 text-xs text-red-500">
-          SIDEBAR CUSTOM ATIVA ✅
-        </div>
         <button 
           onClick={() => setCollapsed(!collapsed)}
           className="p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-foreground transition-colors"
