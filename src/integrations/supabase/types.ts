@@ -14,6 +14,126 @@ export type Database = {
   }
   public: {
     Tables: {
+      clients: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          status: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          status?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      deals: {
+        Row: {
+          amount_cents: number | null
+          channel: string | null
+          closed_at: string | null
+          created_at: string | null
+          id: string
+          is_recurring: boolean | null
+          lead_id: string | null
+          owner_id: string | null
+          stage: string
+        }
+        Insert: {
+          amount_cents?: number | null
+          channel?: string | null
+          closed_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_recurring?: boolean | null
+          lead_id?: string | null
+          owner_id?: string | null
+          stage?: string
+        }
+        Update: {
+          amount_cents?: number | null
+          channel?: string | null
+          closed_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_recurring?: boolean | null
+          lead_id?: string | null
+          owner_id?: string | null
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deals_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          actor_id: string | null
+          client_id: string | null
+          created_at: string | null
+          deal_id: string | null
+          event_type: string
+          id: string
+          lead_id: string | null
+          payload: Json
+        }
+        Insert: {
+          actor_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          deal_id?: string | null
+          event_type: string
+          id?: string
+          lead_id?: string | null
+          payload?: Json
+        }
+        Update: {
+          actor_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          deal_id?: string | null
+          event_type?: string
+          id?: string
+          lead_id?: string | null
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inbox_conversations: {
         Row: {
           assigned_to: string | null
@@ -269,6 +389,18 @@ export type Database = {
         }
         Relationships: []
       }
+      roles: {
+        Row: {
+          id: string
+        }
+        Insert: {
+          id: string
+        }
+        Update: {
+          id?: string
+        }
+        Relationships: []
+      }
       seller_channels: {
         Row: {
           channel_type: Database["public"]["Enums"]["channel_type"]
@@ -301,6 +433,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      tasks: {
+        Row: {
+          assignee_id: string | null
+          client_id: string | null
+          created_at: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          service_type: string
+          status: string
+          title: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          service_type?: string
+          status?: string
+          title: string
+        }
+        Update: {
+          assignee_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          service_type?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {
@@ -364,16 +540,66 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      tasks_board: {
+        Row: {
+          assignee_avatar: string | null
+          assignee_email: string | null
+          assignee_id: string | null
+          assignee_name: string | null
+          client_id: string | null
+          client_name: string | null
+          created_at: string | null
+          description: string | null
+          due_date: string | null
+          id: string | null
+          service_type: string | null
+          status: string | null
+          title: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks_calendar: {
+        Row: {
+          assignee_avatar: string | null
+          assignee_id: string | null
+          assignee_name: string | null
+          client_id: string | null
+          client_name: string | null
+          due_date: string | null
+          id: string | null
+          service_type: string | null
+          status: string | null
+          title: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      has_role:
+        | {
+            Args: {
+              _role: Database["public"]["Enums"]["app_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
+        | { Args: { _role: string; _user_id: string }; Returns: boolean }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
